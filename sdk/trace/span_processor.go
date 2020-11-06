@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 
+	"go.opentelemetry.io/otel"
 	export "go.opentelemetry.io/otel/sdk/export/trace"
 )
 
@@ -26,7 +27,7 @@ type SpanProcessor interface {
 
 	// OnStart method is invoked when span is started. It is a synchronous call
 	// and hence should not block.
-	OnStart(sd *export.SpanData)
+	OnStart(sd *export.SpanData, pc otel.SpanContext)
 
 	// OnEnd method is invoked when span is finished. It is a synchronous call
 	// and hence should not block.

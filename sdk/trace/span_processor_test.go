@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/label"
 	export "go.opentelemetry.io/otel/sdk/export/trace"
 )
@@ -29,7 +30,7 @@ type testSpanProcessor struct {
 	shutdownCount int
 }
 
-func (t *testSpanProcessor) OnStart(s *export.SpanData) {
+func (t *testSpanProcessor) OnStart(s *export.SpanData, pc otel.SpanContext) {
 	kv := label.KeyValue{
 		Key:   "OnStart",
 		Value: label.StringValue(t.name),
