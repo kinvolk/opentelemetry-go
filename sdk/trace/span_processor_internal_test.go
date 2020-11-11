@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package trace_test
+package trace
 
 import (
 	"context"
@@ -20,31 +20,30 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/label"
-	export "go.opentelemetry.io/otel/sdk/export/trace"
 )
 
 type testSpanProcessor struct {
 	name          string
-	spansStarted  []*export.SpanData
-	spansEnded    []*export.SpanData
+	spansStarted  []otel.Span
+	spansEnded    []otel.Span
 	shutdownCount int
 }
 
-func (t *testSpanProcessor) OnStart(s *export.SpanData, pc otel.SpanContext) {
+func (t *testSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {
 	kv := label.KeyValue{
 		Key:   "OnStart",
 		Value: label.StringValue(t.name),
 	}
-	s.Attributes = append(s.Attributes, kv)
+	s.SetAttributes(kv)
 	t.spansStarted = append(t.spansStarted, s)
 }
 
-func (t *testSpanProcessor) OnEnd(s *export.SpanData) {
+func (t *testSpanProcessor) OnEnd(s otel.Span) {
 	kv := label.KeyValue{
 		Key:   "OnEnd",
 		Value: label.StringValue(t.name),
 	}
-	s.Attributes = append(s.Attributes, kv)
+	s.SetAttributes(kv)
 	t.spansEnded = append(t.spansEnded, s)
 }
 
@@ -67,8 +66,8 @@ func TestRegisterSpanProcessort(t *testing.T) {
 	}
 
 	tr := tp.Tracer("SpanProcessor")
-	_, span := tr.Start(context.Background(), "OnStart")
-	span.End()
+	_, s := tr.Start(context.Background(), "OnStart")
+	s.End()
 	wantCount := 1
 
 	for _, sp := range sps {
@@ -82,7 +81,8 @@ func TestRegisterSpanProcessort(t *testing.T) {
 		}
 
 		c := 0
-		for _, kv := range sp.spansStarted[0].Attributes {
+		sd := sp.spansStarted[0].(*span).makeSpanData()
+		for _, kv := range sd.Attributes {
 			if kv.Key != "OnStart" {
 				continue
 			}
@@ -109,15 +109,15 @@ func TestUnregisterSpanProcessor(t *testing.T) {
 	}
 
 	tr := tp.Tracer("SpanProcessor")
-	_, span := tr.Start(context.Background(), "OnStart")
-	span.End()
+	_, s := tr.Start(context.Background(), "OnStart")
+	s.End()
 	for _, sp := range sps {
 		tp.UnregisterSpanProcessor(sp)
 	}
 
 	// start another span after unregistering span processor.
-	_, span = tr.Start(context.Background(), "Start span after unregister")
-	span.End()
+	_, s = tr.Start(context.Background(), "Start span after unregister")
+	s.End()
 
 	for _, sp := range sps {
 		wantCount := 1
@@ -132,7 +132,8 @@ func TestUnregisterSpanProcessor(t *testing.T) {
 		}
 
 		c := 0
-		for _, kv := range sp.spansEnded[0].Attributes {
+		sd := sp.spansStarted[0].(*span).makeSpanData()
+		for _, kv := range sd.Attributes {
 			if kv.Key != "OnEnd" {
 				continue
 			}

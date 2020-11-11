@@ -150,7 +150,7 @@ func (s *span) End(options ...trace.SpanOption) {
 				sd.EndTime = config.Timestamp
 			}
 			for _, sp := range sps {
-				sp.sp.OnEnd(sd)
+				sp.sp.OnEnd(s)
 			}
 		}
 	})

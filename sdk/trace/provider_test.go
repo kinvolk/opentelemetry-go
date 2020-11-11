@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel"
-	export "go.opentelemetry.io/otel/sdk/export/trace"
 )
 
 type basicSpanProcesor struct {
@@ -31,9 +30,9 @@ func (t *basicSpanProcesor) Shutdown(context.Context) error {
 	return nil
 }
 
-func (t *basicSpanProcesor) OnStart(s *export.SpanData, pc otel.SpanContext) {}
-func (t *basicSpanProcesor) OnEnd(s *export.SpanData)                        {}
-func (t *basicSpanProcesor) ForceFlush()                                     {}
+func (t *basicSpanProcesor) OnStart(s otel.Span, pc otel.SpanContext) {}
+func (t *basicSpanProcesor) OnEnd(s otel.Span)                        {}
+func (t *basicSpanProcesor) ForceFlush()                              {}
 
 func TestShutdownTraceProvider(t *testing.T) {
 	stp := NewTracerProvider()

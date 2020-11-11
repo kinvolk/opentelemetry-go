@@ -40,12 +40,13 @@ func NewSimpleSpanProcessor(exporter export.SpanExporter) *SimpleSpanProcessor {
 }
 
 // OnStart method does nothing.
-func (ssp *SimpleSpanProcessor) OnStart(sd *export.SpanData, pc otel.SpanContext) {
+func (ssp *SimpleSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {
 }
 
 // OnEnd method exports SpanData using associated export.
-func (ssp *SimpleSpanProcessor) OnEnd(sd *export.SpanData) {
-	if ssp.e != nil && sd.SpanContext.IsSampled() {
+func (ssp *SimpleSpanProcessor) OnEnd(s otel.Span) {
+	if ssp.e != nil && s.SpanContext().IsSampled() {
+		sd := s.(*span).makeSpanData()
 		if err := ssp.e.ExportSpans(context.Background(), []*export.SpanData{sd}); err != nil {
 			global.Handle(err)
 		}

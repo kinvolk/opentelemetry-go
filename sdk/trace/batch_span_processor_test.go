@@ -62,9 +62,17 @@ var _ export.SpanExporter = (*testBatchExporter)(nil)
 
 func TestNewBatchSpanProcessorWithNilExporter(t *testing.T) {
 	bsp := sdktrace.NewBatchSpanProcessor(nil)
+	tp := basicTracerProvider(t)
+	tp.RegisterSpanProcessor(bsp)
+	tr := tp.Tracer("BatchSpanProcessorWithNilExporter")
+
+	sc := getSpanContext()
+	ctx := otel.ContextWithRemoteSpanContext(context.Background(), sc)
+	_, span := tr.Start(ctx, "foo")
+
 	// These should not panic.
-	bsp.OnStart(&export.SpanData{}, otel.SpanContext{})
-	bsp.OnEnd(&export.SpanData{})
+	bsp.OnStart(span, otel.SpanContext{})
+	bsp.OnEnd(span)
 	bsp.ForceFlush()
 	err := bsp.Shutdown(context.Background())
 	if err != nil {

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	export "go.opentelemetry.io/otel/sdk/export/trace"
 	"go.opentelemetry.io/otel/sdk/export/trace/tracetest"
 )
 
@@ -35,10 +34,11 @@ type DurationFilter struct {
 	Max time.Duration
 }
 
-func (f DurationFilter) OnStart(sd *export.SpanData, pc otel.SpanContext) { f.Next.OnStart(sd, pc) }
-func (f DurationFilter) Shutdown(ctx context.Context) error               { return f.Next.Shutdown(ctx) }
-func (f DurationFilter) ForceFlush()                                      { f.Next.ForceFlush() }
-func (f DurationFilter) OnEnd(sd *export.SpanData) {
+func (f DurationFilter) OnStart(s otel.Span, pc otel.SpanContext) { f.Next.OnStart(s, pc) }
+func (f DurationFilter) Shutdown(ctx context.Context) error       { return f.Next.Shutdown(ctx) }
+func (f DurationFilter) ForceFlush()                              { f.Next.ForceFlush() }
+func (f DurationFilter) OnEnd(s otel.Span) {
+	sd := s.(*span).makeSpanData()
 	if f.Min > 0 && sd.EndTime.Sub(sd.StartTime) < f.Min {
 		// Drop short lived spans.
 		return
@@ -47,7 +47,7 @@ func (f DurationFilter) OnEnd(sd *export.SpanData) {
 		// Drop long lived spans.
 		return
 	}
-	f.Next.OnEnd(sd)
+	f.Next.OnEnd(s)
 }
 
 // InstrumentationBlacklist is a SpanProcessor that drops all spans from
@@ -61,17 +61,18 @@ type InstrumentationBlacklist struct {
 	Blacklist map[string]bool
 }
 
-func (f InstrumentationBlacklist) OnStart(sd *export.SpanData, pc otel.SpanContext) {
-	f.Next.OnStart(sd, pc)
+func (f InstrumentationBlacklist) OnStart(s otel.Span, pc otel.SpanContext) {
+	f.Next.OnStart(s, pc)
 }
 func (f InstrumentationBlacklist) Shutdown(ctx context.Context) error { return f.Next.Shutdown(ctx) }
 func (f InstrumentationBlacklist) ForceFlush()                        { f.Next.ForceFlush() }
-func (f InstrumentationBlacklist) OnEnd(sd *export.SpanData) {
+func (f InstrumentationBlacklist) OnEnd(s otel.Span) {
+	sd := s.(*span).makeSpanData()
 	if f.Blacklist != nil && f.Blacklist[sd.InstrumentationLibrary.Name] {
 		// Drop spans from this instrumentation
 		return
 	}
-	f.Next.OnEnd(sd)
+	f.Next.OnEnd(s)
 }
 
 func ExampleSpanProcessor() {

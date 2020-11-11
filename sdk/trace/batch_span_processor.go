@@ -64,7 +64,7 @@ type BatchSpanProcessor struct {
 	e export.SpanExporter
 	o BatchSpanProcessorOptions
 
-	queue   chan *export.SpanData
+	queue   chan otel.Span
 	dropped uint32
 
 	batch      []*export.SpanData
@@ -98,7 +98,7 @@ func NewBatchSpanProcessor(exporter export.SpanExporter, options ...BatchSpanPro
 		o:      o,
 		batch:  make([]*export.SpanData, 0, o.MaxExportBatchSize),
 		timer:  time.NewTimer(o.BatchTimeout),
-		queue:  make(chan *export.SpanData, o.MaxQueueSize),
+		queue:  make(chan otel.Span, o.MaxQueueSize),
 		stopCh: make(chan struct{}),
 	}
 
@@ -113,15 +113,15 @@ func NewBatchSpanProcessor(exporter export.SpanExporter, options ...BatchSpanPro
 }
 
 // OnStart method does nothing.
-func (bsp *BatchSpanProcessor) OnStart(sd *export.SpanData, pc otel.SpanContext) {}
+func (bsp *BatchSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {}
 
 // OnEnd method enqueues export.SpanData for later processing.
-func (bsp *BatchSpanProcessor) OnEnd(sd *export.SpanData) {
+func (bsp *BatchSpanProcessor) OnEnd(s otel.Span) {
 	// Do not enqueue spans if we are just going to drop them.
 	if bsp.e == nil {
 		return
 	}
-	bsp.enqueue(sd)
+	bsp.enqueue(s)
 }
 
 // Shutdown flushes the queue and waits until all spans are processed.
@@ -201,7 +201,10 @@ func (bsp *BatchSpanProcessor) processQueue() {
 			return
 		case <-bsp.timer.C:
 			bsp.exportSpans()
-		case sd := <-bsp.queue:
+		case s := <-bsp.queue:
+			// TODO: Is it safe to cast this way?
+			sd := s.(*span).makeSpanData()
+
 			bsp.batchMutex.Lock()
 			bsp.batch = append(bsp.batch, sd)
 			shouldExport := len(bsp.batch) == bsp.o.MaxExportBatchSize
@@ -221,11 +224,13 @@ func (bsp *BatchSpanProcessor) processQueue() {
 func (bsp *BatchSpanProcessor) drainQueue() {
 	for {
 		select {
-		case sd := <-bsp.queue:
-			if sd == nil {
+		case s := <-bsp.queue:
+			if s == nil {
 				bsp.exportSpans()
 				return
 			}
+
+			sd := s.(*span).makeSpanData()
 
 			bsp.batchMutex.Lock()
 			bsp.batch = append(bsp.batch, sd)
@@ -241,8 +246,8 @@ func (bsp *BatchSpanProcessor) drainQueue() {
 	}
 }
 
-func (bsp *BatchSpanProcessor) enqueue(sd *export.SpanData) {
-	if !sd.SpanContext.IsSampled() {
+func (bsp *BatchSpanProcessor) enqueue(s otel.Span) {
+	if !s.SpanContext().IsSampled() {
 		return
 	}
 
@@ -268,12 +273,12 @@ func (bsp *BatchSpanProcessor) enqueue(sd *export.SpanData) {
 	}
 
 	if bsp.o.BlockOnQueueFull {
-		bsp.queue <- sd
+		bsp.queue <- s
 		return
 	}
 
 	select {
-	case bsp.queue <- sd:
+	case bsp.queue <- s:
 	default:
 		atomic.AddUint32(&bsp.dropped, 1)
 	}
