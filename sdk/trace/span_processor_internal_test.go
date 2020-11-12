@@ -18,32 +18,32 @@ import (
 	"context"
 	"testing"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/label"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type testSpanProcessor struct {
 	name          string
-	spansStarted  []otel.Span
-	spansEnded    []otel.Span
+	spansStarted  []trace.Span
+	spansEnded    []trace.Span
 	shutdownCount int
 }
 
-func (t *testSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {
+func (t *testSpanProcessor) OnStart(s trace.Span, pc trace.SpanContext) {
 	kv := label.KeyValue{
 		Key:   "SpanProcessor",
 		Value: label.StringValue(t.name),
 	}
-	s.AddEvent("OnStart", otel.WithAttributes(kv))
+	s.AddEvent("OnStart", trace.WithAttributes(kv))
 	t.spansStarted = append(t.spansStarted, s)
 }
 
-func (t *testSpanProcessor) OnEnd(s otel.Span) {
+func (t *testSpanProcessor) OnEnd(s trace.Span) {
 	kv := label.KeyValue{
 		Key:   "SpanProcessor",
 		Value: label.StringValue(t.name),
 	}
-	s.AddEvent("OnEnd", otel.WithAttributes(kv))
+	s.AddEvent("OnEnd", trace.WithAttributes(kv))
 	t.spansEnded = append(t.spansEnded, s)
 }
 

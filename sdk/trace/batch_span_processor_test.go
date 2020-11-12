@@ -67,11 +67,11 @@ func TestNewBatchSpanProcessorWithNilExporter(t *testing.T) {
 	tr := tp.Tracer("BatchSpanProcessorWithNilExporter")
 
 	sc := getSpanContext()
-	ctx := otel.ContextWithRemoteSpanContext(context.Background(), sc)
+	ctx := trace.ContextWithRemoteSpanContext(context.Background(), sc)
 	_, span := tr.Start(ctx, "foo")
 
 	// These should not panic.
-	bsp.OnStart(span, otel.SpanContext{})
+	bsp.OnStart(span, trace.SpanContext{})
 	bsp.OnEnd(span)
 	bsp.ForceFlush()
 	err := bsp.Shutdown(context.Background())

@@ -21,9 +21,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/global"
 	export "go.opentelemetry.io/otel/sdk/export/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -64,7 +64,7 @@ type BatchSpanProcessor struct {
 	e export.SpanExporter
 	o BatchSpanProcessorOptions
 
-	queue   chan otel.Span
+	queue   chan trace.Span
 	dropped uint32
 
 	batch      []*export.SpanData
@@ -98,7 +98,7 @@ func NewBatchSpanProcessor(exporter export.SpanExporter, options ...BatchSpanPro
 		o:      o,
 		batch:  make([]*export.SpanData, 0, o.MaxExportBatchSize),
 		timer:  time.NewTimer(o.BatchTimeout),
-		queue:  make(chan otel.Span, o.MaxQueueSize),
+		queue:  make(chan trace.Span, o.MaxQueueSize),
 		stopCh: make(chan struct{}),
 	}
 
@@ -113,10 +113,10 @@ func NewBatchSpanProcessor(exporter export.SpanExporter, options ...BatchSpanPro
 }
 
 // OnStart method does nothing.
-func (bsp *BatchSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {}
+func (bsp *BatchSpanProcessor) OnStart(s trace.Span, pc trace.SpanContext) {}
 
 // OnEnd method enqueues export.SpanData for later processing.
-func (bsp *BatchSpanProcessor) OnEnd(s otel.Span) {
+func (bsp *BatchSpanProcessor) OnEnd(s trace.Span) {
 	// Do not enqueue spans if we are just going to drop them.
 	if bsp.e == nil {
 		return
@@ -246,7 +246,7 @@ func (bsp *BatchSpanProcessor) drainQueue() {
 	}
 }
 
-func (bsp *BatchSpanProcessor) enqueue(s otel.Span) {
+func (bsp *BatchSpanProcessor) enqueue(s trace.Span) {
 	if !s.SpanContext().IsSampled() {
 		return
 	}

@@ -17,9 +17,9 @@ package trace // import "go.opentelemetry.io/otel/sdk/trace"
 import (
 	"context"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/global"
 	export "go.opentelemetry.io/otel/sdk/export/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // SimpleSpanProcessor is a SpanProcessor that synchronously sends all
@@ -40,11 +40,11 @@ func NewSimpleSpanProcessor(exporter export.SpanExporter) *SimpleSpanProcessor {
 }
 
 // OnStart method does nothing.
-func (ssp *SimpleSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {
+func (ssp *SimpleSpanProcessor) OnStart(s trace.Span, pc trace.SpanContext) {
 }
 
 // OnEnd method exports SpanData using associated export.
-func (ssp *SimpleSpanProcessor) OnEnd(s otel.Span) {
+func (ssp *SimpleSpanProcessor) OnEnd(s trace.Span) {
 	if ssp.e != nil && s.SpanContext().IsSampled() {
 		sd := s.(*span).makeSpanData()
 		if err := ssp.e.ExportSpans(context.Background(), []*export.SpanData{sd}); err != nil {
