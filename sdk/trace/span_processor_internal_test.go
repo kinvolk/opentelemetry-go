@@ -31,19 +31,19 @@ type testSpanProcessor struct {
 
 func (t *testSpanProcessor) OnStart(s otel.Span, pc otel.SpanContext) {
 	kv := label.KeyValue{
-		Key:   "OnStart",
+		Key:   "SpanProcessor",
 		Value: label.StringValue(t.name),
 	}
-	s.SetAttributes(kv)
+	s.AddEvent("OnStart", otel.WithAttributes(kv))
 	t.spansStarted = append(t.spansStarted, s)
 }
 
 func (t *testSpanProcessor) OnEnd(s otel.Span) {
 	kv := label.KeyValue{
-		Key:   "OnEnd",
+		Key:   "SpanProcessor",
 		Value: label.StringValue(t.name),
 	}
-	s.SetAttributes(kv)
+	s.AddEvent("OnEnd", otel.WithAttributes(kv))
 	t.spansEnded = append(t.spansEnded, s)
 }
 
@@ -82,18 +82,23 @@ func TestRegisterSpanProcessor(t *testing.T) {
 
 		c := 0
 		sd := sp.spansStarted[0].(*span).makeSpanData()
-		for _, kv := range sd.Attributes {
-			if kv.Key != "OnStart" {
+		for _, e := range sd.MessageEvents {
+			if e.Name != "OnStart" {
 				continue
 			}
-			gotValue := kv.Value.AsString()
-			if gotValue != spNames[c] {
-				t.Errorf("%s: ordered attributes: got %s, want %s\n", name, gotValue, spNames[c])
+			for _, kv := range e.Attributes {
+				if kv.Key != "SpanProcessor" {
+					continue
+				}
+				gotValue := kv.Value.AsString()
+				if gotValue != spNames[c] {
+					t.Errorf("%s: ordered events: got %s, want %s\n", name, gotValue, spNames[c])
+				}
+				c++
 			}
-			c++
 		}
 		if c != len(spNames) {
-			t.Errorf("%s: expected attributes(OnStart): got %d, want %d\n", name, c, len(spNames))
+			t.Errorf("%s: expected events(OnStart): got %d, want %d\n", name, c, len(spNames))
 		}
 	}
 }
@@ -133,18 +138,23 @@ func TestUnregisterSpanProcessor(t *testing.T) {
 
 		c := 0
 		sd := sp.spansStarted[0].(*span).makeSpanData()
-		for _, kv := range sd.Attributes {
-			if kv.Key != "OnEnd" {
+		for _, e := range sd.MessageEvents {
+			if e.Name != "OnEnd" {
 				continue
 			}
-			gotValue := kv.Value.AsString()
-			if gotValue != spNames[c] {
-				t.Errorf("%s: ordered attributes: got %s, want %s\n", name, gotValue, spNames[c])
+			for _, kv := range e.Attributes {
+				if kv.Key != "SpanProcessor" {
+					continue
+				}
+				gotValue := kv.Value.AsString()
+				if gotValue != spNames[c] {
+					t.Errorf("%s: ordered events: got %s, want %s\n", name, gotValue, spNames[c])
+				}
+				c++
 			}
-			c++
 		}
 		if c != len(spNames) {
-			t.Errorf("%s: expected attributes(OnEnd): got %d, want %d\n", name, c, len(spNames))
+			t.Errorf("%s: expected events(OnEnd): got %d, want %d\n", name, c, len(spNames))
 		}
 	}
 }
