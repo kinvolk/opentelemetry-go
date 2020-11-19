@@ -134,6 +134,15 @@ func (oc *grpcConnection) indefiniteBackgroundConnection() {
 		case <-oc.stopCh:
 			return
 
+		default:
+			// Not stopped right now, go wait for
+			// disconnect signal then.
+		}
+
+		select {
+		case <-oc.stopCh:
+			return
+
 		case <-oc.disconnectedCh:
 			// Normal scenario that we'll wait for
 		}
