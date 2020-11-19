@@ -17,4 +17,11 @@
 // This package is currently in a pre-GA phase. Backwards incompatible changes
 // may be introduced in subsequent minor version releases as we work to track
 // the evolving OpenTelemetry specification and user feedback.
+//
+// To create a new exporter use either NewExporter or
+// NewUnstartedExporter. But to create one, a connection manager is
+// required. Currently only a GRPC connection manager is provided, and
+// it can be created with NewGRPCSingleConnectionManager. The GRPC
+// connection manager can be configured. Please see the examples to
+// see how it's done.
 package otlp // import "go.opentelemetry.io/otel/exporters/otlp"

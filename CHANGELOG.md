@@ -23,6 +23,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add an OpenCensus to OpenTelemetry tracing bridge. (#1305)
 - Add a parent context argument to `SpanProcessor.OnStart` to follow the specification. (#1333)
 - Add missing tests for `sdk/trace/attributes_map.go`. (#1337)
+- Add an opencensus binary propagation implementation. (#1334)
+- Support different OTLP exporter endpoints, allowing separate configurations for metrics and traces through `NewConnections`, `SetMetricsOptions`, `SetTracesOptions` functions from `go.opentelemetry.io/exporters/otlp/options` and the `ConnConfigurations` structure. (#1202)
 
 ### Changed
 
@@ -55,6 +57,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Correct the `Span.End` method documentation in the `otel` API to state updates are not allowed on a span after it has ended. (#1310)
 - Updated span collection limits for attribute, event and link counts to 1000 (#1318)
 - Renamed `semconv.HTTPUrlKey` to `semconv.HTTPURLKey`. (#1338)
+- Change `go.opentelemetry.io/exporters/otlp/` `Exporter` interface to take as parameter a `ConnConfigurations` structure containing different configurations for metrics and traces endpoints. (#1202)
+- `go.opentelemetry.io/exporters/otlp/` `Exporter` connection logic (including indefinite background connection) is now handled by an internal `go.opentelemetry.io/exporters/otlp/` `otlpConnection` object. (#1202)
 
 ### Removed
 
