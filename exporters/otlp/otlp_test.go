@@ -20,20 +20,83 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	metricpb "go.opentelemetry.io/otel/exporters/otlp/internal/opentelemetry-proto-gen/metrics/v1"
+	tracepb "go.opentelemetry.io/otel/exporters/otlp/internal/opentelemetry-proto-gen/trace/v1"
+	"go.opentelemetry.io/otel/exporters/otlp/internal/transform"
+
+	metricsdk "go.opentelemetry.io/otel/sdk/export/metric"
+	tracesdk "go.opentelemetry.io/otel/sdk/export/trace"
 )
+
+type stubConnectionManager struct {
+	rm []metricpb.ResourceMetrics
+	rs []tracepb.ResourceSpans
+}
+
+var _ ConnectionManager = (*stubConnectionManager)(nil)
+
+func (m *stubConnectionManager) Start(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+func (m *stubConnectionManager) Stop(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+func (m *stubConnectionManager) ExportMetrics(parent context.Context, cps metricsdk.CheckpointSet, selector metricsdk.ExportKindSelector) error {
+	rms, err := transform.CheckpointSet(parent, selector, cps, 1)
+	if err != nil {
+		return err
+	}
+	for _, rm := range rms {
+		if rm == nil {
+			continue
+		}
+		m.rm = append(m.rm, *rm)
+	}
+	return nil
+}
+
+func (m *stubConnectionManager) ExportTraces(ctx context.Context, sds []*tracesdk.SpanData) error {
+	for _, rs := range transform.SpanData(sds) {
+		if rs == nil {
+			continue
+		}
+		m.rs = append(m.rs, *rs)
+	}
+	return nil
+}
+
+func (m *stubConnectionManager) Reset() {
+	m.rm = nil
+	m.rs = nil
+}
+
+func newExporter(t *testing.T, opts ...ExporterOption) (*Exporter, *stubConnectionManager) {
+	cm := &stubConnectionManager{}
+	exp, err := NewExporter(context.Background(), cm, opts...)
+	require.NoError(t, err)
+	return exp, cm
+}
 
 func TestExporterShutdownHonorsTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
-	e := NewUnstartedExporter()
-	orig := e.cc.closeBackgroundConnectionDoneCh
-	e.cc.closeBackgroundConnectionDoneCh = func(ch chan struct{}) {
-		go func() {
-			<-ctx.Done()
-			orig(ch)
-		}()
-	}
+	e := NewUnstartedExporter(&stubConnectionManager{})
 	if err := e.Start(ctx); err != nil {
 		t.Fatalf("failed to start exporter: %v", err)
 	}
@@ -51,14 +114,7 @@ func TestExporterShutdownHonorsCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
-	e := NewUnstartedExporter()
-	orig := e.cc.closeBackgroundConnectionDoneCh
-	e.cc.closeBackgroundConnectionDoneCh = func(ch chan struct{}) {
-		go func() {
-			<-ctx.Done()
-			orig(ch)
-		}()
-	}
+	e := NewUnstartedExporter(&stubConnectionManager{})
 	if err := e.Start(ctx); err != nil {
 		t.Fatalf("failed to start exporter: %v", err)
 	}
@@ -77,7 +133,7 @@ func TestExporterShutdownNoError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
-	e := NewUnstartedExporter()
+	e := NewUnstartedExporter(&stubConnectionManager{})
 	if err := e.Start(ctx); err != nil {
 		t.Fatalf("failed to start exporter: %v", err)
 	}
@@ -89,7 +145,7 @@ func TestExporterShutdownNoError(t *testing.T) {
 
 func TestExporterShutdownManyTimes(t *testing.T) {
 	ctx := context.Background()
-	e, err := NewExporter(ctx)
+	e, err := NewExporter(ctx, &stubConnectionManager{})
 	if err != nil {
 		t.Fatalf("failed to start an exporter: %v", err)
 	}

@@ -24,12 +24,18 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/sdk/metric/controller/push"
+	"go.opentelemetry.io/otel/sdk/metric/processor/basic"
+	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 func Example_insecure() {
 	ctx := context.Background()
-	exp, err := otlp.NewExporter(ctx, otlp.WithInsecure())
+	config := otlp.GRPCConnectionConfig{}.Apply(otlp.WithInsecure())
+	cm := otlp.NewGRPCSingleConnectionManager(config)
+	exp, err := otlp.NewExporter(ctx, cm)
 	if err != nil {
 		log.Fatalf("Failed to create the collector exporter: %v", err)
 	}
@@ -74,7 +80,9 @@ func Example_withTLS() {
 	}
 
 	ctx := context.Background()
-	exp, err := otlp.NewExporter(ctx, otlp.WithTLSCredentials(creds))
+	config := otlp.GRPCConnectionConfig{}.Apply(otlp.WithTLSCredentials(creds))
+	cm := otlp.NewGRPCSingleConnectionManager(config)
+	exp, err := otlp.NewExporter(ctx, cm)
 	if err != nil {
 		log.Fatalf("failed to create the collector exporter: %v", err)
 	}
