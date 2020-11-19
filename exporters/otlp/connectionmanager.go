@@ -16,6 +16,7 @@ package otlp // import "go.opentelemetry.io/otel/exporters/otlp"
 
 import (
 	"context"
+	"sync"
 
 	metricsdk "go.opentelemetry.io/otel/sdk/export/metric"
 	tracesdk "go.opentelemetry.io/otel/sdk/export/trace"
@@ -48,4 +49,79 @@ type ConnectionManager interface {
 	// concurrently with ExportMetrics, so the manager needs to
 	// take this into account by doing proper locking.
 	ExportTraces(ctx context.Context, sds []*tracesdk.SpanData) error
+}
+
+type splitConnectionManager struct {
+	metric ConnectionManager
+	trace  ConnectionManager
+}
+
+var _ ConnectionManager = (*splitConnectionManager)(nil)
+
+// NewSplitConnectionManager creates a connection manager which
+// contains two other connection manager and will forward traces to
+// one of them and metrics to another.
+func NewSplitConnectionManager(metric, trace ConnectionManager) ConnectionManager {
+	return &splitConnectionManager{
+		metric: metric,
+		trace:  trace,
+	}
+}
+
+func (m *splitConnectionManager) Start(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	var (
+		metricErr error
+		traceErr  error
+	)
+	go func() {
+		defer wg.Done()
+		metricErr = m.metric.Start(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		traceErr = m.trace.Start(ctx)
+	}()
+	wg.Wait()
+	if metricErr != nil {
+		return metricErr
+	}
+	if traceErr != nil {
+		return traceErr
+	}
+	return nil
+}
+
+func (m *splitConnectionManager) Stop(ctx context.Context) error {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	var (
+		metricErr error
+		traceErr  error
+	)
+	go func() {
+		defer wg.Done()
+		metricErr = m.metric.Stop(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		traceErr = m.trace.Stop(ctx)
+	}()
+	wg.Wait()
+	if metricErr != nil {
+		return metricErr
+	}
+	if traceErr != nil {
+		return traceErr
+	}
+	return nil
+}
+
+func (m *splitConnectionManager) ExportMetrics(parent context.Context, cps metricsdk.CheckpointSet, selector metricsdk.ExportKindSelector) error {
+	return m.metric.ExportMetrics(parent, cps, selector)
+}
+
+func (m *splitConnectionManager) ExportTraces(ctx context.Context, sds []*tracesdk.SpanData) error {
+	return m.trace.ExportTraces(ctx, sds)
 }
