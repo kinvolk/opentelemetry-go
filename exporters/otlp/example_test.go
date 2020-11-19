@@ -117,3 +117,81 @@ func Example_withTLS() {
 		iSpan.End()
 	}
 }
+
+func Example_withDifferentSignalCollectors() {
+
+	// Set different endpoints for the metrics and traces collectors
+	config := otlp.GRPCMultiConnectionConfig{}
+	config.Metrics.ApplyInPlace(
+		otlp.WithInsecure(),
+		otlp.WithAddress("localhost:30080"),
+	)
+	config.Traces.ApplyInPlace(
+		otlp.WithInsecure(),
+		otlp.WithAddress("localhost:30082"),
+	)
+	cm := otlp.NewGRPCMultiConnectionManager(config)
+	ctx := context.Background()
+	exp, err := otlp.NewExporter(ctx, cm)
+	if err != nil {
+		log.Fatalf("failed to create the collector exporter: %v", err)
+	}
+
+	defer func() {
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		if err := exp.Shutdown(ctx); err != nil {
+			otel.Handle(err)
+		}
+	}()
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithConfig(sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
+		sdktrace.WithBatcher(
+			exp,
+			// add following two options to ensure flush
+			sdktrace.WithBatchTimeout(5),
+			sdktrace.WithMaxExportBatchSize(10),
+		),
+	)
+	otel.SetTracerProvider(tp)
+
+	pusher := push.New(
+		basic.New(
+			simple.NewWithExactDistribution(),
+			exp,
+		),
+		exp,
+		push.WithPeriod(2*time.Second),
+	)
+	otel.SetMeterProvider(pusher.MeterProvider())
+
+	pusher.Start()
+	defer pusher.Stop() // pushes any last exports to the receiver
+
+	tracer := otel.Tracer("test-tracer")
+	meter := otel.Meter("test-meter")
+
+	// Recorder metric example
+	valuerecorder := metric.Must(meter).
+		NewFloat64Counter(
+			"an_important_metric",
+			metric.WithDescription("Measures the cumulative epicness of the app"),
+		)
+
+	// work begins
+	ctx, span := tracer.Start(
+		ctx,
+		"DifferentCollectors-Example")
+	defer span.End()
+	for i := 0; i < 10; i++ {
+		_, iSpan := tracer.Start(ctx, fmt.Sprintf("Sample-%d", i))
+		log.Printf("Doing really hard work (%d / 10)\n", i+1)
+		valuerecorder.Add(ctx, 1.0)
+
+		<-time.After(time.Second)
+		iSpan.End()
+	}
+
+	log.Printf("Done!")
+}
